@@ -1,6 +1,7 @@
 "use strict";
 
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
 
@@ -141,13 +142,42 @@ function parseFlagArgs(argv) {
   return parsed;
 }
 
+function getDefaultCodexHome() {
+  return path.join(os.homedir(), ".codex-ralph");
+}
+
+function getPrimaryCodexHome(env = process.env) {
+  return env.CODEX_HOME || path.join(os.homedir(), ".codex");
+}
+
+function ensureRalphCodexHome(env = process.env) {
+  const targetHome = env.RALPH_CODEX_HOME || env.CODEX_HOME || getDefaultCodexHome();
+  fs.mkdirSync(targetHome, { recursive: true });
+
+  const sourceHome = getPrimaryCodexHome({ ...env, CODEX_HOME: undefined });
+  if (sourceHome !== targetHome) {
+    for (const name of ["auth.json"]) {
+      const sourcePath = path.join(sourceHome, name);
+      const targetPath = path.join(targetHome, name);
+      if (!fs.existsSync(targetPath) && fs.existsSync(sourcePath)) {
+        fs.copyFileSync(sourcePath, targetPath);
+      }
+    }
+  }
+
+  return targetHome;
+}
+
 module.exports = {
   appendHistory,
   atomicWriteJson,
   buildIterationPrompt,
   createInitialState,
+  ensureRalphCodexHome,
   ensureRalphRoot,
+  getDefaultCodexHome,
   getIterationLogPath,
+  getPrimaryCodexHome,
   getRalphPaths,
   isPidAlive,
   parseFlagArgs,

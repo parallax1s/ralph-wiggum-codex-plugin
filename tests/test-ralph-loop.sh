@@ -4,12 +4,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TMP_DIR="${REPO_ROOT}/tests/tmp/test-ralph-loop"
+TEST_HOME="${TMP_DIR}/home"
 LONG_REPO="${TMP_DIR}/long-running-project"
 COMPLETE_REPO="${TMP_DIR}/completed-project"
 LONG_LOG="${TMP_DIR}/long-fake-codex.log"
 COMPLETE_LOG="${TMP_DIR}/complete-fake-codex.log"
 FOREGROUND_REPO="${TMP_DIR}/foreground-project"
 TIMEOUT_REPO="${TMP_DIR}/timeout-project"
+DEFAULT_HOME_REPO="${TMP_DIR}/default-home-project"
+DEFAULT_HOME_LOG="${TMP_DIR}/default-home-fake-codex.log"
 
 wait_for_file() {
   local file_path="$1"
@@ -54,10 +57,14 @@ EOF
 rm -rf "${TMP_DIR}"
 mkdir -p "${LONG_REPO}" "${COMPLETE_REPO}" "${FOREGROUND_REPO}"
 mkdir -p "${TIMEOUT_REPO}"
+mkdir -p "${DEFAULT_HOME_REPO}"
+mkdir -p "${TEST_HOME}/.codex"
+printf '{"token":"test"}\n' >"${TEST_HOME}/.codex/auth.json"
 printf 'repo\n' >"${LONG_REPO}/README.md"
 printf 'repo\n' >"${COMPLETE_REPO}/README.md"
 printf 'repo\n' >"${FOREGROUND_REPO}/README.md"
 printf 'repo\n' >"${TIMEOUT_REPO}/README.md"
+printf 'repo\n' >"${DEFAULT_HOME_REPO}/README.md"
 
 (
   cd "${FOREGROUND_REPO}"
@@ -98,6 +105,23 @@ if (!fs.existsSync(logPath)) {
   process.exit(1);
 }
 EOF
+
+(
+  cd "${DEFAULT_HOME_REPO}"
+  HOME="${TEST_HOME}" \
+  RALPH_CODEX_BINARY="${REPO_ROOT}/scripts/fake-codex.sh" \
+  FAKE_CODEX_LOG="${DEFAULT_HOME_LOG}" \
+  FAKE_CODEX_MODE="complete" \
+  FAKE_CODEX_COMPLETE_PROMISE="COMPLETE" \
+  node "${REPO_ROOT}/scripts/ralph-start.js" \
+    --prompt "Use the dedicated Ralph Codex home by default." \
+    --max-iterations 1 \
+    --completion-promise COMPLETE \
+    >"${TMP_DIR}/default-home.stdout.log" 2>"${TMP_DIR}/default-home.stderr.log"
+)
+
+grep -F "CODEX_HOME=${TEST_HOME}/.codex-ralph" "${DEFAULT_HOME_LOG}" >/dev/null
+test -f "${TEST_HOME}/.codex-ralph/auth.json"
 
 (
   cd "${TIMEOUT_REPO}"

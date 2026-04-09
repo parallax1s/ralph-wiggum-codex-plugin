@@ -5,6 +5,7 @@ const path = require("path");
 const { spawn } = require("child_process");
 const {
   createInitialState,
+  ensureRalphCodexHome,
   ensureRalphRoot,
   isPidAlive,
   readState,
@@ -80,6 +81,7 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
   const cwd = process.cwd();
   ensureRalphRoot(cwd);
+  const codexHome = ensureRalphCodexHome(process.env);
 
   const existing = readState(cwd);
   if (!args.force && existing && existing.status === "running" && isPidAlive(existing.pid)) {
@@ -105,7 +107,7 @@ function main() {
       cwd,
       detached: true,
       stdio: "ignore",
-      env: process.env,
+      env: { ...process.env, CODEX_HOME: codexHome },
     });
     child.unref();
 
@@ -118,7 +120,7 @@ function main() {
   const result = spawn(process.execPath, [runnerPath], {
     cwd,
     stdio: "inherit",
-    env: process.env,
+    env: { ...process.env, CODEX_HOME: codexHome },
   });
 
   result.on("exit", (code) => {

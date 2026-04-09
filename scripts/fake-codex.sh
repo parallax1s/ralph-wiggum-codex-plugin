@@ -7,6 +7,7 @@ PROMPT="${*: -1}"
 
 if [[ -n "${LOG_PATH}" ]]; then
   mkdir -p "$(dirname "${LOG_PATH}")"
+  printf 'CODEX_HOME=%s\n' "${CODEX_HOME:-}" >>"${LOG_PATH}"
   printf '%s\n' "$*" >>"${LOG_PATH}"
 fi
 
