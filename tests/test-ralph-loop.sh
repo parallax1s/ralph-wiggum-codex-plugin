@@ -136,6 +136,9 @@ if (!Array.isArray(history) || history.length !== 1) {
 if (history[0].timedOut !== true) {
   process.exit(1);
 }
+if (history[0].completionDetected !== false) {
+  process.exit(1);
+}
 EOF
 
 (

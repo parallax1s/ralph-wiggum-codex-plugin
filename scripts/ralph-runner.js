@@ -28,18 +28,24 @@ function getCodexArgs(state, prompt) {
 
 function detectResult(output, state) {
   const completionMarker = `<promise>${state.completionPromise}</promise>`;
-  if (output.includes(completionMarker)) {
+  const completionPattern = new RegExp(`^\\s*${escapeRegExp(completionMarker)}\\s*$`, "m");
+  if (completionPattern.test(output)) {
     return "completed";
   }
 
   if (state.abortPromise) {
     const abortMarker = `<promise>${state.abortPromise}</promise>`;
-    if (output.includes(abortMarker)) {
+    const abortPattern = new RegExp(`^\\s*${escapeRegExp(abortMarker)}\\s*$`, "m");
+    if (abortPattern.test(output)) {
       return "aborted";
     }
   }
 
   return null;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function runIteration(state) {
