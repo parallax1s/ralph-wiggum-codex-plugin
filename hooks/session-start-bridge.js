@@ -18,6 +18,10 @@ function queuePath() {
   return process.env.CODEX_THREAD_RESUMER_PROMPT_QUEUE || path.join(codexHome(), "thread-resumer-prompt-queue.json");
 }
 
+function lockPath() {
+  return `${queuePath()}.lock`;
+}
+
 function upstreamHookPath() {
   return process.env.RALPH_UPSTREAM_SESSION_START || path.join(codexHome(), "superpowers", "hooks", "session-start");
 }
@@ -32,20 +36,50 @@ function readExperimentalResume() {
   return match ? match[1] : null;
 }
 
-function consumeQueuedPrompt(rolloutPath) {
-  const qp = queuePath();
-  if (!rolloutPath || !fs.existsSync(qp)) {
-    return null;
-  }
-  const payload = JSON.parse(fs.readFileSync(qp, "utf8"));
-  for (const [threadId, record] of Object.entries(payload)) {
-    if (record && typeof record === "object" && record.rollout_path === rolloutPath) {
-      delete payload[threadId];
-      fs.writeFileSync(qp, JSON.stringify(payload, null, 2), "utf8");
-      return record;
+function sleepMs(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function withQueueLock(fn) {
+  const lp = lockPath();
+  const deadline = Date.now() + 2000;
+  while (true) {
+    try {
+      const fd = fs.openSync(lp, "wx");
+      try {
+        return fn();
+      } finally {
+        fs.closeSync(fd);
+        fs.unlinkSync(lp);
+      }
+    } catch (error) {
+      if (error && error.code !== "EEXIST") {
+        throw error;
+      }
+      if (Date.now() >= deadline) {
+        throw new Error(`Timed out waiting for queue lock: ${lp}`);
+      }
+      sleepMs(25);
     }
   }
-  return null;
+}
+
+function consumeQueuedPrompt(rolloutPath) {
+  return withQueueLock(() => {
+    const qp = queuePath();
+    if (!rolloutPath || !fs.existsSync(qp)) {
+      return null;
+    }
+    const payload = JSON.parse(fs.readFileSync(qp, "utf8"));
+    for (const [threadId, record] of Object.entries(payload)) {
+      if (record && typeof record === "object" && record.rollout_path === rolloutPath) {
+        delete payload[threadId];
+        fs.writeFileSync(qp, JSON.stringify(payload, null, 2), "utf8");
+        return record;
+      }
+    }
+    return null;
+  });
 }
 
 function runUpstreamHook() {
