@@ -11,6 +11,10 @@ It provides:
 
 It stores loop state under `.ralph/` in the target repository.
 
+Demo:
+
+- [Example video](./assets/ralph-for-codex.mov)
+
 Default behavior:
 
 - foreground loop in the current conversation
