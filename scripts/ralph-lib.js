@@ -47,6 +47,14 @@ function createInitialState(options) {
   };
 }
 
+function updateState(state, patch) {
+  return {
+    ...state,
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 function atomicWriteJson(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const tmpPath = `${filePath}.${crypto.randomBytes(4).toString("hex")}.tmp`;
@@ -68,16 +76,60 @@ function appendHistory(historyPath, entry) {
   atomicWriteJson(historyPath, history);
 }
 
+function readState(cwd) {
+  return readJson(getRalphPaths(cwd).state, null);
+}
+
+function writeState(cwd, state) {
+  atomicWriteJson(getRalphPaths(cwd).state, state);
+}
+
 function getIterationLogPath(cwd, iteration) {
   return path.join(getRalphPaths(cwd).logs, `iteration-${iteration}.log`);
+}
+
+function isPidAlive(pid) {
+  if (!pid || typeof pid !== "number") {
+    return false;
+  }
+
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function buildIterationPrompt(state, contextText) {
+  const parts = [
+    state.taskPrompt,
+    `Output <promise>${state.completionPromise}</promise> when complete.`,
+  ];
+
+  if (state.abortPromise) {
+    parts.push(`Output <promise>${state.abortPromise}</promise> if the task is blocked by unmet preconditions.`);
+  }
+
+  if (contextText && contextText.trim() !== "") {
+    parts.push(`Additional context:\n${contextText.trim()}`);
+  }
+
+  parts.push("Continue from the current repository state and previous changes.");
+  return parts.join("\n\n");
 }
 
 module.exports = {
   appendHistory,
   atomicWriteJson,
+  buildIterationPrompt,
   createInitialState,
   ensureRalphRoot,
   getIterationLogPath,
   getRalphPaths,
+  isPidAlive,
   readJson,
+  readState,
+  updateState,
+  writeState,
 };
