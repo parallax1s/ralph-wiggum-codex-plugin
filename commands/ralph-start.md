@@ -1,5 +1,5 @@
 ---
-description: Start a bounded detached Codex Ralph loop in the current repository.
+description: Start a bounded Codex Ralph loop in the current repository.
 argument-hint: <task prompt>
 allowed-tools: [Read, Bash]
 ---
@@ -27,7 +27,7 @@ RALPH_SKILL_DIR="${CODEX_HOME:-$HOME/.codex}/skills/ralph-wiggum-codex-plugin"
 RALPH_PLUGIN_ROOT="$(cd "${RALPH_SKILL_DIR}/../.." && pwd)"
 ```
 
-4. Run the start command with a bounded default:
+4. Run the start command with a bounded default. This runs in the current conversation by default.
 
 ```bash
 node "${RALPH_PLUGIN_ROOT}/scripts/ralph-start.js" \
@@ -37,3 +37,7 @@ node "${RALPH_PLUGIN_ROOT}/scripts/ralph-start.js" \
 ```
 
 5. Report the command result and remind the user they can use `/ralph-status`, `/ralph-add-context`, or `/ralph-stop`.
+
+## Notes
+
+- Add `--background` only when the user explicitly wants a detached loop.

@@ -21,6 +21,7 @@ function parseArgs(argv) {
     model: null,
     tasksMode: false,
     force: false,
+    background: false,
   };
 
   for (let index = 0; index < argv.length; index++) {
@@ -46,6 +47,12 @@ function parseArgs(argv) {
         break;
       case "--force":
         parsed.force = true;
+        break;
+      case "--background":
+        parsed.background = true;
+        break;
+      case "--foreground":
+        parsed.background = false;
         break;
       default:
         throw new Error(`Unknown argument: ${arg}`);
@@ -84,17 +91,31 @@ function main() {
   writeState(cwd, state);
 
   const runnerPath = path.join(__dirname, "ralph-runner.js");
-  const child = spawn(process.execPath, [runnerPath], {
+
+  if (args.background) {
+    const child = spawn(process.execPath, [runnerPath], {
+      cwd,
+      detached: true,
+      stdio: "ignore",
+      env: process.env,
+    });
+    child.unref();
+
+    state = updateState(state, { pid: child.pid });
+    writeState(cwd, state);
+    console.log(JSON.stringify({ started: true, mode: "background", pid: child.pid, cwd }));
+    return;
+  }
+
+  const result = spawn(process.execPath, [runnerPath], {
     cwd,
-    detached: true,
-    stdio: "ignore",
+    stdio: "inherit",
     env: process.env,
   });
-  child.unref();
 
-  state = updateState(state, { pid: child.pid });
-  writeState(cwd, state);
-  console.log(JSON.stringify({ started: true, pid: child.pid, cwd }));
+  result.on("exit", (code) => {
+    process.exit(code ?? 0);
+  });
 }
 
 try {

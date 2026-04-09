@@ -1,6 +1,6 @@
 # Ralph Wiggum Codex Plugin
 
-Ralph Wiggum Codex Plugin is a Codex-native local plugin for running bounded detached `codex exec` loops in the current repository.
+Ralph Wiggum Codex Plugin is a Codex-native local plugin for running bounded `codex exec` loops in the current repository.
 
 It provides:
 
@@ -10,6 +10,11 @@ It provides:
 - `/ralph-stop`
 
 It stores loop state under `.ralph/` in the target repository.
+
+Default behavior:
+
+- foreground loop in the current conversation
+- optional detached mode when you pass `--background`
 
 ## Install
 

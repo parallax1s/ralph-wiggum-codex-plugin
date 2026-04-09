@@ -8,6 +8,7 @@ LONG_REPO="${TMP_DIR}/long-running-project"
 COMPLETE_REPO="${TMP_DIR}/completed-project"
 LONG_LOG="${TMP_DIR}/long-fake-codex.log"
 COMPLETE_LOG="${TMP_DIR}/complete-fake-codex.log"
+FOREGROUND_REPO="${TMP_DIR}/foreground-project"
 
 wait_for_file() {
   local file_path="$1"
@@ -50,9 +51,50 @@ EOF
 }
 
 rm -rf "${TMP_DIR}"
-mkdir -p "${LONG_REPO}" "${COMPLETE_REPO}"
+mkdir -p "${LONG_REPO}" "${COMPLETE_REPO}" "${FOREGROUND_REPO}"
 printf 'repo\n' >"${LONG_REPO}/README.md"
 printf 'repo\n' >"${COMPLETE_REPO}/README.md"
+printf 'repo\n' >"${FOREGROUND_REPO}/README.md"
+
+(
+  cd "${FOREGROUND_REPO}"
+  RALPH_CODEX_BINARY="${REPO_ROOT}/scripts/fake-codex.sh" \
+  FAKE_CODEX_MODE="complete" \
+  FAKE_CODEX_COMPLETE_PROMISE="COMPLETE" \
+  node "${REPO_ROOT}/scripts/ralph-start.js" \
+    --prompt "Run in foreground by default." \
+    --max-iterations 2 \
+    --completion-promise COMPLETE \
+    >"${TMP_DIR}/foreground.stdout.log" 2>"${TMP_DIR}/foreground.stderr.log"
+)
+
+FOREGROUND_STATE="${FOREGROUND_REPO}/.ralph/ralph-loop.state.json"
+FOREGROUND_HISTORY="${FOREGROUND_REPO}/.ralph/ralph-history.json"
+wait_for_file "${FOREGROUND_STATE}"
+wait_for_state_status "${FOREGROUND_STATE}" "completed"
+wait_for_file "${FOREGROUND_HISTORY}"
+
+FOREGROUND_STATE="${FOREGROUND_STATE}" \
+FOREGROUND_HISTORY="${FOREGROUND_HISTORY}" \
+node <<'EOF'
+const fs = require("fs");
+const path = require("path");
+const state = JSON.parse(fs.readFileSync(process.env.FOREGROUND_STATE, "utf8"));
+const history = JSON.parse(fs.readFileSync(process.env.FOREGROUND_HISTORY, "utf8"));
+if (state.lastResult !== "completed") {
+  process.exit(1);
+}
+if (state.pid !== null) {
+  process.exit(1);
+}
+if (!Array.isArray(history) || history.length === 0) {
+  process.exit(1);
+}
+const logPath = path.join(path.dirname(process.env.FOREGROUND_STATE), "logs", `iteration-${state.iteration}.log`);
+if (!fs.existsSync(logPath)) {
+  process.exit(1);
+}
+EOF
 
 (
   cd "${LONG_REPO}"
@@ -61,6 +103,7 @@ printf 'repo\n' >"${COMPLETE_REPO}/README.md"
   FAKE_CODEX_MODE="sleep" \
   FAKE_CODEX_SLEEP_SECONDS="5" \
   node "${REPO_ROOT}/scripts/ralph-start.js" \
+    --background \
     --prompt "Stay running until stopped." \
     --max-iterations 1 \
     --completion-promise COMPLETE \
@@ -71,6 +114,13 @@ LONG_STATE="${LONG_REPO}/.ralph/ralph-loop.state.json"
 wait_for_file "${LONG_STATE}"
 wait_for_state_status "${LONG_STATE}" "running"
 
+LONG_PID="$(START_STDOUT="${TMP_DIR}/long-start.stdout.log" node <<'EOF'
+const fs = require("fs");
+const payload = JSON.parse(fs.readFileSync(process.env.START_STDOUT, "utf8"));
+process.stdout.write(String(payload.pid || ""));
+EOF
+)"
+
 set +e
 (
   cd "${LONG_REPO}"
@@ -79,6 +129,7 @@ set +e
   FAKE_CODEX_MODE="sleep" \
   FAKE_CODEX_SLEEP_SECONDS="5" \
   node "${REPO_ROOT}/scripts/ralph-start.js" \
+    --background \
     --prompt "This second start should fail." \
     --max-iterations 1 \
     --completion-promise COMPLETE \
@@ -93,13 +144,6 @@ if [[ "${DUPLICATE_STATUS}" -eq 0 ]]; then
 fi
 
 grep -F "Ralph loop already running in this repository" "${TMP_DIR}/duplicate.stderr.log" >/dev/null
-
-LONG_PID="$(STATE_PATH="${LONG_STATE}" node <<'EOF'
-const fs = require("fs");
-const state = JSON.parse(fs.readFileSync(process.env.STATE_PATH, "utf8"));
-process.stdout.write(String(state.pid || ""));
-EOF
-)"
 
 (
   cd "${LONG_REPO}"
@@ -132,6 +176,7 @@ fi
   FAKE_CODEX_MODE="complete" \
   FAKE_CODEX_COMPLETE_PROMISE="COMPLETE" \
   node "${REPO_ROOT}/scripts/ralph-start.js" \
+    --background \
     --prompt "Create hello.txt and output COMPLETE when done." \
     --max-iterations 2 \
     --completion-promise COMPLETE \
