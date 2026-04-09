@@ -19,6 +19,7 @@ Default behavior:
 
 - foreground loop in the current conversation
 - optional detached mode when you pass `--background`
+- if `--max-iterations` is omitted, Ralph defaults to `256` as the safety bound for “until stopped”
 
 ## Install
 
@@ -37,7 +38,7 @@ This installer:
 ## Direct CLI Usage
 
 ```bash
-node scripts/ralph-start.js --prompt "Implement feature X" --max-iterations 5 --completion-promise COMPLETE
+node scripts/ralph-start.js --prompt "Implement feature X" --completion-promise COMPLETE
 node scripts/ralph-status.js
 node scripts/ralph-add-context.js --message "Prefer the smaller patch."
 node scripts/ralph-stop.js
