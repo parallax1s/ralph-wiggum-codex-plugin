@@ -9,6 +9,7 @@ COMPLETE_REPO="${TMP_DIR}/completed-project"
 LONG_LOG="${TMP_DIR}/long-fake-codex.log"
 COMPLETE_LOG="${TMP_DIR}/complete-fake-codex.log"
 FOREGROUND_REPO="${TMP_DIR}/foreground-project"
+TIMEOUT_REPO="${TMP_DIR}/timeout-project"
 
 wait_for_file() {
   local file_path="$1"
@@ -52,9 +53,11 @@ EOF
 
 rm -rf "${TMP_DIR}"
 mkdir -p "${LONG_REPO}" "${COMPLETE_REPO}" "${FOREGROUND_REPO}"
+mkdir -p "${TIMEOUT_REPO}"
 printf 'repo\n' >"${LONG_REPO}/README.md"
 printf 'repo\n' >"${COMPLETE_REPO}/README.md"
 printf 'repo\n' >"${FOREGROUND_REPO}/README.md"
+printf 'repo\n' >"${TIMEOUT_REPO}/README.md"
 
 (
   cd "${FOREGROUND_REPO}"
@@ -92,6 +95,45 @@ if (!Array.isArray(history) || history.length === 0) {
 }
 const logPath = path.join(path.dirname(process.env.FOREGROUND_STATE), "logs", `iteration-${state.iteration}.log`);
 if (!fs.existsSync(logPath)) {
+  process.exit(1);
+}
+EOF
+
+(
+  cd "${TIMEOUT_REPO}"
+  RALPH_CODEX_BINARY="${REPO_ROOT}/scripts/fake-codex.sh" \
+  FAKE_CODEX_MODE="sleep" \
+  FAKE_CODEX_SLEEP_SECONDS="5" \
+  node "${REPO_ROOT}/scripts/ralph-start.js" \
+    --prompt "Timeout after one bounded iteration." \
+    --max-iterations 1 \
+    --iteration-timeout-ms 1000 \
+    --completion-promise COMPLETE \
+    >"${TMP_DIR}/timeout.stdout.log" 2>"${TMP_DIR}/timeout.stderr.log"
+)
+
+TIMEOUT_STATE="${TIMEOUT_REPO}/.ralph/ralph-loop.state.json"
+TIMEOUT_HISTORY="${TIMEOUT_REPO}/.ralph/ralph-history.json"
+wait_for_file "${TIMEOUT_STATE}"
+wait_for_state_status "${TIMEOUT_STATE}" "failed"
+wait_for_file "${TIMEOUT_HISTORY}"
+
+TIMEOUT_STATE="${TIMEOUT_STATE}" \
+TIMEOUT_HISTORY="${TIMEOUT_HISTORY}" \
+node <<'EOF'
+const fs = require("fs");
+const history = JSON.parse(fs.readFileSync(process.env.TIMEOUT_HISTORY, "utf8"));
+const state = JSON.parse(fs.readFileSync(process.env.TIMEOUT_STATE, "utf8"));
+if (state.lastResult !== "iteration-timeout") {
+  process.exit(1);
+}
+if (state.lastError !== "Codex iteration timed out after 1000ms") {
+  process.exit(1);
+}
+if (!Array.isArray(history) || history.length !== 1) {
+  process.exit(1);
+}
+if (history[0].timedOut !== true) {
   process.exit(1);
 }
 EOF

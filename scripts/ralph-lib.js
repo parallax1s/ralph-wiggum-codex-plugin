@@ -34,6 +34,7 @@ function createInitialState(options) {
     updatedAt: now,
     iteration: 0,
     maxIterations: options.maxIterations,
+    iterationTimeoutMs: options.iterationTimeoutMs ?? 60000,
     completionPromise: options.completionPromise,
     abortPromise: options.abortPromise || null,
     model: options.model || null,

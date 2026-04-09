@@ -16,6 +16,7 @@ function parseArgs(argv) {
   const parsed = {
     prompt: "",
     maxIterations: 0,
+    iterationTimeoutMs: 60000,
     completionPromise: "COMPLETE",
     abortPromise: null,
     model: null,
@@ -35,6 +36,9 @@ function parseArgs(argv) {
         break;
       case "--completion-promise":
         parsed.completionPromise = argv[++index] || "COMPLETE";
+        break;
+      case "--iteration-timeout-ms":
+        parsed.iterationTimeoutMs = Number(argv[++index] || "0");
         break;
       case "--abort-promise":
         parsed.abortPromise = argv[++index] || "";
@@ -65,6 +69,9 @@ function parseArgs(argv) {
   if (!Number.isInteger(parsed.maxIterations) || parsed.maxIterations < 1) {
     throw new Error("Missing or invalid argument: --max-iterations");
   }
+  if (!Number.isInteger(parsed.iterationTimeoutMs) || parsed.iterationTimeoutMs < 1) {
+    throw new Error("Missing or invalid argument: --iteration-timeout-ms");
+  }
 
   return parsed;
 }
@@ -82,6 +89,7 @@ function main() {
   let state = createInitialState({
     cwd,
     maxIterations: args.maxIterations,
+    iterationTimeoutMs: args.iterationTimeoutMs,
     completionPromise: args.completionPromise,
     abortPromise: args.abortPromise,
     model: args.model,

@@ -56,6 +56,7 @@ function runIteration(state) {
     cwd: state.cwd,
     env: process.env,
     encoding: "utf8",
+    timeout: state.iterationTimeoutMs,
   });
 
   const stdout = result.stdout || "";
@@ -70,6 +71,7 @@ function runIteration(state) {
     startedAt,
     endedAt: new Date().toISOString(),
     exitCode: result.status,
+    timedOut: Boolean(result.error && result.error.code === "ETIMEDOUT"),
     completionDetected: outcome === "completed",
     abortDetected: outcome === "aborted",
     logPath,
@@ -81,7 +83,13 @@ function runIteration(state) {
     lastError: result.error ? String(result.error.message || result.error) : null,
   });
 
-  if (outcome === "completed") {
+  if (result.error && result.error.code === "ETIMEDOUT") {
+    nextState = updateState(nextState, {
+      status: "failed",
+      lastResult: "iteration-timeout",
+      lastError: `Codex iteration timed out after ${state.iterationTimeoutMs}ms`,
+    });
+  } else if (outcome === "completed") {
     nextState = updateState(nextState, { status: "completed", lastResult: "completed" });
   } else if (outcome === "aborted") {
     nextState = updateState(nextState, { status: "aborted", lastResult: "aborted" });
