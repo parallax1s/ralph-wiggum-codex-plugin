@@ -51,7 +51,6 @@ node scripts/ralph-start.js \
   --transport visible-thread \
   --thread-id 019d61bf-9ed1-7011-96c5-adc870674b21 \
   --prompt "continue" \
-  --max-iterations 5 \
   --completion-promise COMPLETE
 ```
 
@@ -68,7 +67,6 @@ If you need to arm the loop from inside an already-active turn, use the post-tur
 python3 scripts/ralph-arm-visible-thread.py \
   --thread-id 019d61bf-9ed1-7011-96c5-adc870674b21 \
   --prompt "continue" \
-  --max-iterations 5 \
   --iteration-timeout-ms 300000 \
   --completion-promise COMPLETE
 ```
