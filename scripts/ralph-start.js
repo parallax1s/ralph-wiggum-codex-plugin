@@ -16,7 +16,7 @@ const {
 function parseArgs(argv) {
   const parsed = {
     prompt: "",
-    maxIterations: 0,
+    maxIterations: 256,
     iterationTimeoutMs: 60000,
     completionPromise: "COMPLETE",
     abortPromise: null,
@@ -76,7 +76,7 @@ function parseArgs(argv) {
     throw new Error("Missing required argument: --prompt");
   }
   if (!Number.isInteger(parsed.maxIterations) || parsed.maxIterations < 1) {
-    throw new Error("Missing or invalid argument: --max-iterations");
+    throw new Error("Invalid argument: --max-iterations");
   }
   if (!Number.isInteger(parsed.iterationTimeoutMs) || parsed.iterationTimeoutMs < 1) {
     throw new Error("Missing or invalid argument: --iteration-timeout-ms");
