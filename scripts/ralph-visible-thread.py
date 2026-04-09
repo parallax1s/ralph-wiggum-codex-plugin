@@ -39,7 +39,15 @@ def main() -> int:
       print("missing turn id from visible-thread start", file=sys.stderr)
       return 1
     print(f"[ralph-visible-thread] started turn {turn_id}", file=sys.stderr)
-    terminal_turn = client.wait_for_turn_terminal(conversation_id=args.thread_id, turn_id=str(turn_id))
+    settled = client.wait_for_turn_settled(conversation_id=args.thread_id, turn_id=str(turn_id), quiet_seconds=2.0)
+    if settled.get("outcome") == "superseded":
+        superseding_turn = settled.get("supersedingTurn") or {}
+        superseding_id = superseding_turn.get("turnId")
+        if superseding_id:
+            print(f"[ralph-visible-thread] superseded by newer turn {superseding_id}", file=sys.stderr)
+        print("<promise>COMPLETE</promise>")
+        return 0
+    terminal_turn = settled["turn"]
     _emit_turn_output(terminal_turn)
     if terminal_turn.get("status") == "completed":
         return 0

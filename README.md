@@ -53,8 +53,9 @@ node scripts/ralph-start.js \
 In `visible-thread` mode, Ralph:
 
 - submits exactly one live user turn into the target Codex desktop thread
-- waits for that specific turn to leave `inProgress` before attempting another iteration
+- waits for that specific turn to become terminal and then for the conversation to stay idle before attempting another iteration
 - refuses to enqueue a new iteration if the conversation already has an in-progress turn
+- stops looping if a newer turn supersedes the Ralph-started turn before the thread settles
 
 ## Validation
 

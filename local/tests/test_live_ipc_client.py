@@ -252,6 +252,85 @@ class LiveIpcClientTests(unittest.TestCase):
         self.assertEqual(result["status"], "completed")
         self.assertEqual(result["items"][0]["text"], "done")
 
+    def test_wait_for_turn_settled_returns_when_idle_after_terminal_turn(self) -> None:
+        LiveCodexIpcClient = self._imports()
+        fake = _FakeSocket(
+            [
+                {
+                    "type": "response",
+                    "requestId": "init",
+                    "resultType": "success",
+                    "method": "initialize",
+                    "result": {"clientId": "client-1"},
+                },
+                {
+                    "type": "broadcast",
+                    "method": "thread-stream-state-changed",
+                    "sourceClientId": "owner-1",
+                    "params": {
+                        "conversationId": "thread-1",
+                        "change": {
+                            "type": "snapshot",
+                            "conversationState": {
+                                "id": "thread-1",
+                                "turns": [
+                                    {"turnId": "turn-1", "status": "completed", "items": [{"type": "agentMessage", "text": "done"}]},
+                                ],
+                                "requests": [],
+                            },
+                        },
+                    },
+                },
+            ]
+        )
+
+        with patch.object(socket, "socket", return_value=fake):
+            client = LiveCodexIpcClient(socket_path=Path("/tmp/fake.sock"), timeout_seconds=0.1)
+            result = client.wait_for_turn_settled(conversation_id="thread-1", turn_id="turn-1", quiet_seconds=0)
+
+        self.assertEqual(result["outcome"], "settled")
+        self.assertEqual(result["turn"]["status"], "completed")
+
+    def test_wait_for_turn_settled_reports_superseded_when_newer_turn_appears(self) -> None:
+        LiveCodexIpcClient = self._imports()
+        fake = _FakeSocket(
+            [
+                {
+                    "type": "response",
+                    "requestId": "init",
+                    "resultType": "success",
+                    "method": "initialize",
+                    "result": {"clientId": "client-1"},
+                },
+                {
+                    "type": "broadcast",
+                    "method": "thread-stream-state-changed",
+                    "sourceClientId": "owner-1",
+                    "params": {
+                        "conversationId": "thread-1",
+                        "change": {
+                            "type": "snapshot",
+                            "conversationState": {
+                                "id": "thread-1",
+                                "turns": [
+                                    {"turnId": "turn-1", "status": "completed"},
+                                    {"turnId": "turn-2", "status": "inProgress"},
+                                ],
+                                "requests": [],
+                            },
+                        },
+                    },
+                },
+            ]
+        )
+
+        with patch.object(socket, "socket", return_value=fake):
+            client = LiveCodexIpcClient(socket_path=Path("/tmp/fake.sock"), timeout_seconds=0.1)
+            result = client.wait_for_turn_settled(conversation_id="thread-1", turn_id="turn-1", quiet_seconds=0)
+
+        self.assertEqual(result["outcome"], "superseded")
+        self.assertEqual(result["supersedingTurn"]["turnId"], "turn-2")
+
 
 if __name__ == "__main__":
     unittest.main()

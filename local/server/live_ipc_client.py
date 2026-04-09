@@ -95,6 +95,95 @@ class LiveCodexIpcClient:
                         return turn
             raise TimeoutError(f"Timed out waiting for turn to become terminal: {turn_id}")
 
+    def wait_for_turn_settled(
+        self,
+        *,
+        conversation_id: str,
+        turn_id: str,
+        quiet_seconds: float = 2.0,
+    ) -> dict[str, Any]:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.connect(str(self.socket_path))
+            self._initialize(sock)
+            end = time.time() + self.timeout_seconds
+            ready_at: float | None = None
+            terminal_turn: dict[str, Any] | None = None
+
+            while time.time() < end:
+                remaining = min(2.0, max(0.05, end - time.time()))
+                try:
+                    owner_client_id, conversation_state = self._await_conversation_state(
+                        sock,
+                        conversation_id=conversation_id,
+                    )
+                    del owner_client_id
+                except TimeoutError:
+                    if ready_at is not None and time.time() >= ready_at:
+                        return {"outcome": "settled", "turn": terminal_turn}
+                    continue
+
+                turns = conversation_state.get("turns", [])
+                target_index = next((i for i, turn in enumerate(turns) if turn.get("turnId") == turn_id), -1)
+                if target_index < 0:
+                    raise RuntimeError(f"turn not found in conversation state: {turn_id}")
+
+                target_turn = turns[target_index]
+                newer_turns = turns[target_index + 1 :]
+                if newer_turns:
+                    return {
+                        "outcome": "superseded",
+                        "turn": target_turn,
+                        "supersedingTurn": newer_turns[-1],
+                    }
+
+                if target_turn.get("status") == "inProgress":
+                    ready_at = None
+                    terminal_turn = None
+                    continue
+
+                in_progress_turns = [turn for turn in turns if turn.get("status") == "inProgress"]
+                requests = conversation_state.get("requests", [])
+                if in_progress_turns or requests:
+                    ready_at = None
+                    terminal_turn = target_turn
+                    continue
+
+                terminal_turn = target_turn
+                if quiet_seconds <= 0:
+                    return {"outcome": "settled", "turn": terminal_turn}
+                ready_at = time.time() + quiet_seconds
+                while time.time() < min(end, ready_at):
+                    try:
+                        owner_client_id, conversation_state = self._await_conversation_state(
+                            sock,
+                            conversation_id=conversation_id,
+                        )
+                        del owner_client_id
+                    except TimeoutError:
+                        continue
+                    turns = conversation_state.get("turns", [])
+                    target_index = next((i for i, turn in enumerate(turns) if turn.get("turnId") == turn_id), -1)
+                    if target_index < 0:
+                        raise RuntimeError(f"turn not found in conversation state: {turn_id}")
+                    target_turn = turns[target_index]
+                    newer_turns = turns[target_index + 1 :]
+                    if newer_turns:
+                        return {
+                            "outcome": "superseded",
+                            "turn": target_turn,
+                            "supersedingTurn": newer_turns[-1],
+                        }
+                    if target_turn.get("status") == "inProgress" or conversation_state.get("requests") or any(
+                        turn.get("status") == "inProgress" for turn in turns
+                    ):
+                        ready_at = None
+                        terminal_turn = target_turn
+                        break
+                else:
+                    return {"outcome": "settled", "turn": terminal_turn}
+
+            raise TimeoutError(f"Timed out waiting for turn to settle: {turn_id}")
+
     def _initialize(self, sock: socket.socket) -> str:
         response = self._request(
             sock,
