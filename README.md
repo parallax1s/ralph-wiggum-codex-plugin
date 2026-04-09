@@ -13,7 +13,7 @@ It stores loop state under `.ralph/` in the target repository.
 
 Demo:
 
-- [Example video](./assets/ralph-for-codex.mov)
+[![Ralph for Codex demo](./assets/ralph-for-codex.gif)](./assets/ralph-for-codex.mov)
 
 Default behavior:
 
