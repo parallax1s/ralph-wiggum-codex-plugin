@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 
@@ -28,13 +29,39 @@ def _emit_turn_output(turn: dict) -> None:
                 print(text)
 
 
+def _extract_turn_id(result: dict) -> str | None:
+    turn = result.get("turn") if isinstance(result, dict) else None
+    if isinstance(turn, dict):
+        return turn.get("id") or turn.get("turnId")
+    if isinstance(result, dict):
+        return result.get("id") or result.get("turnId")
+    return None
+
+
+def _start_turn_with_retry(client: LiveCodexIpcClient, *, thread_id: str, message: str, timeout_seconds: float) -> dict:
+    deadline = time.time() + timeout_seconds
+    while True:
+        try:
+            return client.start_turn(conversation_id=thread_id, message=message)
+        except RuntimeError as error:
+            if "conversation already has in-progress turn(s)" not in str(error):
+                raise
+            if time.time() >= deadline:
+                raise
+            client.wait_for_latest_turn_settled(conversation_id=thread_id, quiet_seconds=0)
+
+
 def main() -> int:
     args = _parse_args()
     timeout_seconds = max(1.0, args.timeout_ms / 1000.0)
     client = LiveCodexIpcClient(timeout_seconds=timeout_seconds)
-    result = client.start_turn(conversation_id=args.thread_id, message=args.message)
-    turn = result.get("turn") or {}
-    turn_id = turn.get("id")
+    result = _start_turn_with_retry(
+        client,
+        thread_id=args.thread_id,
+        message=args.message,
+        timeout_seconds=timeout_seconds,
+    )
+    turn_id = _extract_turn_id(result)
     if not turn_id:
       print("missing turn id from visible-thread start", file=sys.stderr)
       return 1
