@@ -44,3 +44,15 @@ node scripts/ralph-stop.js
 ```bash
 ./scripts/test.sh
 ```
+
+## App-native loop transport
+
+The repo now carries a first app-native loop transport seam under `local/`.
+
+Current first-slice behavior:
+
+- queue one prompt for a target Codex thread with `queue_prompt_for_thread`
+- consume that queued prompt exactly once with `consume_queued_prompt`
+- combine prompt queueing, experimental resume staging, and optional app restart with `resume_thread_with_queue`
+
+This intentionally avoids mutating Codex session transcript files directly. The queued prompt is stored in plugin-owned local state and is meant to be consumed by a future session-start hook or app integration point when the target thread opens.

@@ -1,0 +1,40 @@
+{
+  "name": "codex-thread-resumer",
+  "version": "0.1.0",
+  "description": "Inspect and re-home local Codex desktop threads across workspaces.",
+  "author": {
+    "name": "Local User",
+    "email": "local@example.com",
+    "url": "https://example.com"
+  },
+  "homepage": "https://example.com/codex-thread-resumer",
+  "repository": "https://example.com/codex-thread-resumer",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "threads",
+    "resume",
+    "mcp"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Codex Thread Workspace Manager",
+    "shortDescription": "Move threads across workspaces",
+    "longDescription": "Inspects local Codex desktop threads, previews metadata changes, moves threads between workspaces, and supports undo with backup snapshots.",
+    "developerName": "Local User",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://example.com/codex-thread-resumer",
+    "privacyPolicyURL": "https://example.com/privacy",
+    "termsOfServiceURL": "https://example.com/terms",
+    "defaultPrompt": [
+      "List my recent Codex desktop threads.",
+      "Preview moving this thread from Core to Helm.",
+      "Deep-move this thread to the Helm workspace and keep a rollback backup."
+    ],
+    "brandColor": "#2563EB"
+  }
+}
