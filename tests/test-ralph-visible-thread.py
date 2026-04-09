@@ -52,6 +52,34 @@ class RalphVisibleThreadTests(unittest.TestCase):
         self.assertEqual(fake.start_calls, 2)
         self.assertEqual(fake.wait_calls, 1)
 
+    def test_start_turn_with_retry_does_not_retry_after_newer_turn_settles(self) -> None:
+        module = _load_module()
+
+        class FakeClient:
+            def __init__(self):
+                self.start_calls = 0
+                self.wait_calls = 0
+
+            def start_turn(self, *, conversation_id: str, message: str):
+                self.start_calls += 1
+                raise RuntimeError("conversation already has in-progress turn(s): turn-busy")
+
+            def wait_for_latest_turn_settled(self, *, conversation_id: str, quiet_seconds: float):
+                self.wait_calls += 1
+                return {"outcome": "settled", "turn": {"turnId": "turn-newer", "status": "completed"}}
+
+        fake = FakeClient()
+        with self.assertRaisesRegex(RuntimeError, "superseded while waiting to retry"):
+            module._start_turn_with_retry(
+                fake,
+                thread_id="thread-1",
+                message="continue",
+                timeout_seconds=5.0,
+            )
+
+        self.assertEqual(fake.start_calls, 1)
+        self.assertEqual(fake.wait_calls, 1)
+
 
 if __name__ == "__main__":
     unittest.main()
