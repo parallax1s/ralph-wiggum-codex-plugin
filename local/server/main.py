@@ -9,12 +9,14 @@ from typing import Any
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from server.app_control import CodexAppController
+    from server.app_server_client import CodexAppServerClient
     from server.backup_store import BackupStore
     from server.config_store import ConfigStore
     from server.prompt_queue_store import PromptQueueStore
     from server.thread_store import ThreadStore
 else:  # pragma: no cover - exercised in plugin runtime
     from .app_control import CodexAppController
+    from .app_server_client import CodexAppServerClient
     from .backup_store import BackupStore
     from .config_store import ConfigStore
     from .prompt_queue_store import PromptQueueStore
@@ -56,13 +58,14 @@ def _default_prompt_queue_path() -> Path:
     ).expanduser()
 
 
-def _make_services() -> tuple[ThreadStore, ConfigStore, CodexAppController, PromptQueueStore]:
+def _make_services() -> tuple[ThreadStore, ConfigStore, CodexAppController, PromptQueueStore, CodexAppServerClient]:
     backup_store = BackupStore(_default_backup_path())
     return (
         ThreadStore(_default_state_db(), backup_store=backup_store),
         ConfigStore(_default_config_path()),
         CodexAppController(app_name=_default_app_name()),
         PromptQueueStore(_default_prompt_queue_path()),
+        CodexAppServerClient(),
     )
 
 
@@ -232,6 +235,20 @@ def _tool_definitions() -> list[dict[str, Any]]:
                 "additionalProperties": False,
             },
         },
+        {
+            "name": "send_prompt_to_thread",
+            "description": "Send a prompt directly into an existing Codex thread through codex app-server.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "thread_id": {"type": "string"},
+                    "title": {"type": "string"},
+                    "message": {"type": "string"},
+                },
+                "required": ["message"],
+                "additionalProperties": False,
+            },
+        },
     ]
 
 
@@ -270,7 +287,7 @@ def _resolve_thread(args: dict[str, Any], store: ThreadStore):
 
 
 def _handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
-    thread_store, config_store, app_controller, prompt_queue_store = _make_services()
+    thread_store, config_store, app_controller, prompt_queue_store, app_server_client = _make_services()
 
     if name == "list_threads":
         threads = thread_store.list_threads(
@@ -447,6 +464,14 @@ def _handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
         if restart_result is not None:
             payload["restart_result"] = restart_result.to_dict()
         return _content(payload)
+
+    if name == "send_prompt_to_thread":
+        thread = _resolve_thread(args, thread_store)
+        message = str(args.get("message", "")).strip()
+        if not message:
+            raise McpError("message is required", code=-32003)
+        result = app_server_client.send_prompt_to_thread(thread_id=thread.id, message=message)
+        return _content({"thread": result["thread"], "turn": result["turn"], "sent": True})
 
     raise McpError(f"Unknown tool: {name}", code=-32601)
 
