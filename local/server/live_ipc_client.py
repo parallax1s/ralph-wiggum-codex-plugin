@@ -30,16 +30,14 @@ class LiveCodexIpcClient:
                 sock,
                 conversation_id=conversation_id,
             )
-            in_progress_turns = [
-                turn
-                for turn in conversation_state.get("turns", [])
-                if turn.get("status") == "inProgress"
-            ]
-            if in_progress_turns:
+            latest_turn = self._latest_turn(conversation_state)
+            if latest_turn and latest_turn.get("status") == "inProgress":
                 raise RuntimeError(
                     "conversation already has in-progress turn(s): "
-                    + ", ".join(str(turn.get("turnId")) for turn in in_progress_turns if turn.get("turnId"))
+                    + str(latest_turn.get("turnId"))
                 )
+            if conversation_state.get("requests"):
+                raise RuntimeError("conversation has pending requests")
             response = self._request(
                 sock,
                 client_id=client_id,
@@ -145,9 +143,8 @@ class LiveCodexIpcClient:
                 if target_turn.get("status") == "inProgress":
                     continue
 
-                in_progress_turns = [turn for turn in turns if turn.get("status") == "inProgress"]
                 requests = conversation_state.get("requests", [])
-                if in_progress_turns or requests:
+                if requests:
                     continue
 
                 return {"outcome": "settled", "turn": target_turn}
@@ -234,6 +231,14 @@ class LiveCodexIpcClient:
                         raise RuntimeError("missing source client id for conversation state broadcast")
                     return owner_client_id, conversation_state
         raise TimeoutError(f"Timed out waiting for conversation state: {conversation_id}")
+
+    @staticmethod
+    def _latest_turn(conversation_state: dict[str, Any]) -> dict[str, Any] | None:
+        turns = conversation_state.get("turns", [])
+        for turn in reversed(turns):
+            if turn.get("turnId"):
+                return turn
+        return None
 
     def _recv_one(self, sock: socket.socket, timeout: float) -> dict[str, Any]:
         sock.settimeout(timeout)
