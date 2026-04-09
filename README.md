@@ -57,6 +57,19 @@ In `visible-thread` mode, Ralph:
 - refuses to enqueue a new iteration if the conversation already has an in-progress turn
 - stops looping if a newer turn supersedes the Ralph-started turn before the thread settles
 
+If you need to arm the loop from inside an already-active turn, use the post-turn watcher:
+
+```bash
+python3 scripts/ralph-arm-visible-thread.py \
+  --thread-id 019d61bf-9ed1-7011-96c5-adc870674b21 \
+  --prompt "continue" \
+  --max-iterations 5 \
+  --iteration-timeout-ms 300000 \
+  --completion-promise COMPLETE
+```
+
+That watcher waits for the current latest turn to settle first. If a newer turn supersedes it before the thread goes idle, it exits without injecting the next Ralph turn.
+
 ## Validation
 
 ```bash

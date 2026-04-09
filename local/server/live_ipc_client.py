@@ -77,6 +77,17 @@ class LiveCodexIpcClient:
                 raise RuntimeError(response.get("error") or "live-ipc-request-failed")
             return response.get("result") or {}
 
+    def get_conversation_state(self, *, conversation_id: str) -> dict[str, Any]:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.connect(str(self.socket_path))
+            self._initialize(sock)
+            owner_client_id, conversation_state = self._await_conversation_state(
+                sock,
+                conversation_id=conversation_id,
+            )
+            del owner_client_id
+            return conversation_state
+
     def wait_for_turn_terminal(self, *, conversation_id: str, turn_id: str) -> dict[str, Any]:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
             sock.connect(str(self.socket_path))
@@ -183,6 +194,23 @@ class LiveCodexIpcClient:
                     return {"outcome": "settled", "turn": terminal_turn}
 
             raise TimeoutError(f"Timed out waiting for turn to settle: {turn_id}")
+
+    def wait_for_latest_turn_settled(
+        self,
+        *,
+        conversation_id: str,
+        quiet_seconds: float = 2.0,
+    ) -> dict[str, Any]:
+        conversation_state = self.get_conversation_state(conversation_id=conversation_id)
+        turns = conversation_state.get("turns", [])
+        latest_turn = next((turn for turn in reversed(turns) if turn.get("turnId")), None)
+        if latest_turn is None:
+            return {"outcome": "settled", "turn": None}
+        return self.wait_for_turn_settled(
+            conversation_id=conversation_id,
+            turn_id=str(latest_turn["turnId"]),
+            quiet_seconds=quiet_seconds,
+        )
 
     def _initialize(self, sock: socket.socket) -> str:
         response = self._request(

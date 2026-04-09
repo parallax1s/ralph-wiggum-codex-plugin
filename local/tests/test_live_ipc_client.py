@@ -331,6 +331,102 @@ class LiveIpcClientTests(unittest.TestCase):
         self.assertEqual(result["outcome"], "superseded")
         self.assertEqual(result["supersedingTurn"]["turnId"], "turn-2")
 
+    def test_get_conversation_state_returns_latest_snapshot(self) -> None:
+        LiveCodexIpcClient = self._imports()
+        fake = _FakeSocket(
+            [
+                {
+                    "type": "response",
+                    "requestId": "init",
+                    "resultType": "success",
+                    "method": "initialize",
+                    "result": {"clientId": "client-1"},
+                },
+                {
+                    "type": "broadcast",
+                    "method": "thread-stream-state-changed",
+                    "sourceClientId": "owner-1",
+                    "params": {
+                        "conversationId": "thread-1",
+                        "change": {
+                            "type": "snapshot",
+                            "conversationState": {
+                                "id": "thread-1",
+                                "turns": [{"turnId": "turn-1", "status": "inProgress"}],
+                            },
+                        },
+                    },
+                },
+            ]
+        )
+
+        with patch.object(socket, "socket", return_value=fake):
+            client = LiveCodexIpcClient(socket_path=Path("/tmp/fake.sock"), timeout_seconds=0.1)
+            state = client.get_conversation_state(conversation_id="thread-1")
+
+        self.assertEqual(state["id"], "thread-1")
+        self.assertEqual(state["turns"][0]["turnId"], "turn-1")
+
+    def test_wait_for_latest_turn_settled_tracks_current_latest_turn(self) -> None:
+        LiveCodexIpcClient = self._imports()
+        fake = _FakeSocket(
+            [
+                {
+                    "type": "response",
+                    "requestId": "init",
+                    "resultType": "success",
+                    "method": "initialize",
+                    "result": {"clientId": "client-1"},
+                },
+                {
+                    "type": "broadcast",
+                    "method": "thread-stream-state-changed",
+                    "sourceClientId": "owner-1",
+                    "params": {
+                        "conversationId": "thread-1",
+                        "change": {
+                            "type": "snapshot",
+                            "conversationState": {
+                                "id": "thread-1",
+                                "turns": [{"turnId": "turn-1", "status": "inProgress"}],
+                                "requests": [],
+                            },
+                        },
+                    },
+                },
+                {
+                    "type": "response",
+                    "requestId": "init",
+                    "resultType": "success",
+                    "method": "initialize",
+                    "result": {"clientId": "client-1"},
+                },
+                {
+                    "type": "broadcast",
+                    "method": "thread-stream-state-changed",
+                    "sourceClientId": "owner-1",
+                    "params": {
+                        "conversationId": "thread-1",
+                        "change": {
+                            "type": "snapshot",
+                            "conversationState": {
+                                "id": "thread-1",
+                                "turns": [{"turnId": "turn-1", "status": "completed"}],
+                                "requests": [],
+                            },
+                        },
+                    },
+                },
+            ]
+        )
+
+        with patch.object(socket, "socket", return_value=fake):
+            client = LiveCodexIpcClient(socket_path=Path("/tmp/fake.sock"), timeout_seconds=0.1)
+            result = client.wait_for_latest_turn_settled(conversation_id="thread-1", quiet_seconds=0)
+
+        self.assertEqual(result["outcome"], "settled")
+        self.assertEqual(result["turn"]["turnId"], "turn-1")
+
 
 if __name__ == "__main__":
     unittest.main()
