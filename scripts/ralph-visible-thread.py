@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 import time
 from pathlib import Path
@@ -38,6 +39,11 @@ def _extract_turn_id(result: dict) -> str | None:
     return None
 
 
+def _extract_busy_turn_id(error: RuntimeError) -> str | None:
+    match = re.search(r"in-progress turn\(s\):\s*(\S+)", str(error))
+    return match.group(1) if match else None
+
+
 def _start_turn_with_retry(client: LiveCodexIpcClient, *, thread_id: str, message: str, timeout_seconds: float) -> dict:
     deadline = time.time() + timeout_seconds
     while True:
@@ -48,7 +54,16 @@ def _start_turn_with_retry(client: LiveCodexIpcClient, *, thread_id: str, messag
                 raise
             if time.time() >= deadline:
                 raise
-            client.wait_for_latest_turn_settled(conversation_id=thread_id, quiet_seconds=0)
+            busy_turn_id = _extract_busy_turn_id(error)
+            settled = client.wait_for_latest_turn_settled(conversation_id=thread_id, quiet_seconds=0)
+            settled_turn = settled.get("turn") if isinstance(settled, dict) else None
+            settled_turn_id = None
+            if isinstance(settled_turn, dict):
+                settled_turn_id = settled_turn.get("turnId") or settled_turn.get("id")
+            if busy_turn_id and settled_turn_id and settled_turn_id != busy_turn_id:
+                raise RuntimeError(
+                    f"visible-thread start superseded while waiting to retry: {busy_turn_id} -> {settled_turn_id}"
+                )
 
 
 def main() -> int:
