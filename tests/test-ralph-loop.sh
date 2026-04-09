@@ -101,8 +101,28 @@ process.stdout.write(String(state.pid || ""));
 EOF
 )"
 
+(
+  cd "${LONG_REPO}"
+  node "${REPO_ROOT}/scripts/ralph-add-context.js" \
+    --message "The operator added more context." \
+    >"${TMP_DIR}/add-context.stdout.log" 2>"${TMP_DIR}/add-context.stderr.log"
+)
+
+grep -F "The operator added more context." "${LONG_REPO}/.ralph/ralph-context.md" >/dev/null
+
+(
+  cd "${LONG_REPO}"
+  node "${REPO_ROOT}/scripts/ralph-stop.js" \
+    >"${TMP_DIR}/stop.stdout.log" 2>"${TMP_DIR}/stop.stderr.log"
+)
+
+wait_for_state_status "${LONG_STATE}" "stopped"
+
 if [[ -n "${LONG_PID}" ]]; then
-  kill "${LONG_PID}" 2>/dev/null || true
+  if kill -0 "${LONG_PID}" 2>/dev/null; then
+    echo "Expected Ralph stop to terminate the long-running process" >&2
+    exit 1
+  fi
 fi
 
 (
