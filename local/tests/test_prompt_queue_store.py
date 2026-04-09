@@ -43,6 +43,17 @@ class PromptQueueStoreTests(unittest.TestCase):
         self.assertEqual(first["message"], "go on")
         self.assertIsNone(second)
 
+    def test_consume_by_rollout_path_returns_once_and_clears(self) -> None:
+        store = self._make_store()
+        store.queue_prompt(thread_id="thread-1", message="continue", rollout_path="/tmp/thread.jsonl")
+
+        first = store.consume_by_rollout_path("/tmp/thread.jsonl")
+        second = store.consume_by_rollout_path("/tmp/thread.jsonl")
+
+        self.assertIsNotNone(first)
+        self.assertEqual(first["message"], "continue")
+        self.assertIsNone(second)
+
     def test_clear_prompt_reports_whether_anything_was_removed(self) -> None:
         store = self._make_store()
         store.queue_prompt(thread_id="thread-1", message="continue")

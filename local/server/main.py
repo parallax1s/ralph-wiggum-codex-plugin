@@ -403,6 +403,7 @@ def _handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
             thread_id=thread.id,
             message=message,
             title=thread.title,
+            rollout_path=thread.rollout_path,
         )
         return _content({"queued": True, "thread": thread.to_dict(), "prompt": queued})
 
@@ -429,6 +430,7 @@ def _handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
             thread_id=thread.id,
             message=message,
             title=thread.title,
+            rollout_path=thread.rollout_path,
         )
         backup_path = config_store.set_experimental_resume(thread.rollout_path)
         restart = bool(args.get("restart", True))

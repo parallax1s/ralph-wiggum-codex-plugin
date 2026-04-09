@@ -9,12 +9,20 @@ class PromptQueueStore:
     def __init__(self, queue_path: Path) -> None:
         self.queue_path = Path(queue_path)
 
-    def queue_prompt(self, *, thread_id: str, message: str, title: str | None = None) -> dict[str, object]:
+    def queue_prompt(
+        self,
+        *,
+        thread_id: str,
+        message: str,
+        title: str | None = None,
+        rollout_path: str | None = None,
+    ) -> dict[str, object]:
         payload = self._read_payload()
         record = {
             "thread_id": thread_id,
             "message": message,
             "title": title,
+            "rollout_path": rollout_path,
             "queued_at": datetime.now(timezone.utc).isoformat(),
         }
         payload[thread_id] = record
@@ -30,6 +38,15 @@ class PromptQueueStore:
         if record is not None:
             self._write_payload(payload)
         return record
+
+    def consume_by_rollout_path(self, rollout_path: str) -> dict[str, object] | None:
+        payload = self._read_payload()
+        for thread_id, record in list(payload.items()):
+            if record.get("rollout_path") == rollout_path:
+                payload.pop(thread_id, None)
+                self._write_payload(payload)
+                return record
+        return None
 
     def clear_prompt(self, thread_id: str) -> bool:
         payload = self._read_payload()
