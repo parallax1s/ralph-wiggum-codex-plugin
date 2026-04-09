@@ -17,7 +17,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--thread-id", required=True)
     parser.add_argument("--prompt", required=True)
-    parser.add_argument("--max-iterations", default="5")
+    parser.add_argument("--max-iterations", default="256")
     parser.add_argument("--iteration-timeout-ms", default="300000")
     parser.add_argument("--completion-promise", default="COMPLETE")
     parser.add_argument("--quiet-seconds", type=float, default=2.0)
