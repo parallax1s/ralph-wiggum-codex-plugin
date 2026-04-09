@@ -15,6 +15,8 @@ DEFAULT_HOME_REPO="${TMP_DIR}/default-home-project"
 DEFAULT_HOME_LOG="${TMP_DIR}/default-home-fake-codex.log"
 VISIBLE_THREAD_REPO="${TMP_DIR}/visible-thread-project"
 VISIBLE_THREAD_LOG="${TMP_DIR}/visible-thread.log"
+DETACHED_REPO="${TMP_DIR}/detached-launch-project"
+DETACHED_LOG="${TMP_DIR}/detached-target.log"
 
 wait_for_file() {
   local file_path="$1"
@@ -61,6 +63,7 @@ mkdir -p "${LONG_REPO}" "${COMPLETE_REPO}" "${FOREGROUND_REPO}"
 mkdir -p "${TIMEOUT_REPO}"
 mkdir -p "${DEFAULT_HOME_REPO}"
 mkdir -p "${VISIBLE_THREAD_REPO}"
+mkdir -p "${DETACHED_REPO}"
 mkdir -p "${TEST_HOME}/.codex"
 printf '{"token":"test"}\n' >"${TEST_HOME}/.codex/auth.json"
 printf 'repo\n' >"${LONG_REPO}/README.md"
@@ -69,6 +72,7 @@ printf 'repo\n' >"${FOREGROUND_REPO}/README.md"
 printf 'repo\n' >"${TIMEOUT_REPO}/README.md"
 printf 'repo\n' >"${DEFAULT_HOME_REPO}/README.md"
 printf 'repo\n' >"${VISIBLE_THREAD_REPO}/README.md"
+printf 'repo\n' >"${DETACHED_REPO}/README.md"
 
 (
   cd "${FOREGROUND_REPO}"
@@ -148,6 +152,37 @@ wait_for_state_status "${VISIBLE_THREAD_STATE}" "completed"
 grep -F "THREAD_ID=thread-visible-1" "${VISIBLE_THREAD_LOG}" >/dev/null
 grep -F "TIMEOUT_MS=60000" "${VISIBLE_THREAD_LOG}" >/dev/null
 grep -F "Output <promise>COMPLETE</promise> when complete." "${VISIBLE_THREAD_LOG}" >/dev/null
+
+chmod +x "${REPO_ROOT}/scripts/ralph-launch-detached.py" "${REPO_ROOT}/scripts/fake-detached-target.sh"
+DETACHED_PID_FILE="${DETACHED_REPO}/.ralph/detached.pid"
+DETACHED_STDOUT_FILE="${DETACHED_REPO}/.ralph/detached.stdout"
+DETACHED_STDERR_FILE="${DETACHED_REPO}/.ralph/detached.stderr"
+(
+  cd "${DETACHED_REPO}"
+  FAKE_DETACHED_TARGET_LOG="${DETACHED_LOG}" \
+  FAKE_DETACHED_TARGET_SLEEP_SECONDS="2" \
+  python3 "${REPO_ROOT}/scripts/ralph-launch-detached.py" \
+    --pid-file "${DETACHED_PID_FILE}" \
+    --stdout-file "${DETACHED_STDOUT_FILE}" \
+    --stderr-file "${DETACHED_STDERR_FILE}" \
+    --cwd "${DETACHED_REPO}" \
+    -- \
+    "${REPO_ROOT}/scripts/fake-detached-target.sh" \
+    >"${TMP_DIR}/detached-launch.stdout.log" 2>"${TMP_DIR}/detached-launch.stderr.log"
+)
+
+wait_for_file "${DETACHED_PID_FILE}"
+DETACHED_PID="$(cat "${DETACHED_PID_FILE}")"
+if [[ -z "${DETACHED_PID}" ]]; then
+  echo "Expected detached launcher to write a pid" >&2
+  exit 1
+fi
+if ! kill -0 "${DETACHED_PID}" 2>/dev/null; then
+  echo "Expected detached launcher child to still be alive" >&2
+  exit 1
+fi
+wait_for_file "${DETACHED_LOG}"
+grep -F "started" "${DETACHED_LOG}" >/dev/null
 
 (
   cd "${TIMEOUT_REPO}"
