@@ -1,0 +1,26 @@
+{
+  "name": "ralph-wiggum-codex-plugin",
+  "version": "0.1.0",
+  "description": "Codex-native Ralph Wiggum loop plugin for bounded detached codex exec runs.",
+  "author": {
+    "name": "parallax1s"
+  },
+  "homepage": "https://github.com/parallax1s/ralph-wiggum-codex-plugin",
+  "repository": "https://github.com/parallax1s/ralph-wiggum-codex-plugin",
+  "license": "MIT",
+  "keywords": ["codex", "ralph-wiggum", "plugin", "loop", "automation"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Ralph Wiggum Codex Plugin",
+    "shortDescription": "Run bounded detached Codex Ralph loops",
+    "longDescription": "Start, inspect, steer, and stop bounded detached codex exec loops from a local Codex plugin with repo-local .ralph state.",
+    "developerName": "parallax1s",
+    "category": "Coding",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "defaultPrompt": [
+      "Use the Ralph loop commands when you want a bounded detached codex exec loop with status, stop, and add-context controls."
+    ],
+    "brandColor": "#B45309",
+    "screenshots": []
+  }
+}
