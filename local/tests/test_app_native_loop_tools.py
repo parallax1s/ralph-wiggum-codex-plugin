@@ -56,6 +56,10 @@ class AppNativeLoopToolTests(unittest.TestCase):
             def send_prompt_to_thread(self, *, thread_id: str, message: str):
                 return {"thread": {"id": thread_id}, "turn": {"id": "turn-1", "status": "inProgress"}}
 
+        class FakeLiveIpcClient:
+            def submit_user_input(self, *, conversation_id: str, message: str):
+                return {"ok": True}
+
         self_owner = self
         main._make_services = lambda: (
             FakeThreadStore(),
@@ -63,6 +67,7 @@ class AppNativeLoopToolTests(unittest.TestCase):
             FakeAppController(),
             PromptQueueStore(self.queue_path),
             FakeAppServerClient(),
+            FakeLiveIpcClient(),
         )
 
         result = main._handle_tool_call("queue_prompt_for_thread", {"thread_id": "thread-1", "message": "continue"})
@@ -88,6 +93,10 @@ class AppNativeLoopToolTests(unittest.TestCase):
             def send_prompt_to_thread(self, *, thread_id: str, message: str):
                 return {"thread": {"id": thread_id}, "turn": {"id": "turn-1", "status": "inProgress"}}
 
+        class FakeLiveIpcClient:
+            def submit_user_input(self, *, conversation_id: str, message: str):
+                return {"ok": True}
+
         self_owner = self
         main._make_services = lambda: (
             FakeThreadStore(),
@@ -95,6 +104,7 @@ class AppNativeLoopToolTests(unittest.TestCase):
             FakeAppController(),
             queue_store,
             FakeAppServerClient(),
+            FakeLiveIpcClient(),
         )
 
         first = main._handle_tool_call("consume_queued_prompt", {"thread_id": "thread-1"})["content"][0]["text"]
@@ -120,6 +130,10 @@ class AppNativeLoopToolTests(unittest.TestCase):
             def send_prompt_to_thread(self, *, thread_id: str, message: str):
                 return {"thread": {"id": thread_id}, "turn": {"id": "turn-1", "status": "inProgress"}}
 
+        class FakeLiveIpcClient:
+            def submit_user_input(self, *, conversation_id: str, message: str):
+                return {"ok": True}
+
         self_owner = self
         main._make_services = lambda: (
             FakeThreadStore(),
@@ -127,6 +141,7 @@ class AppNativeLoopToolTests(unittest.TestCase):
             FakeAppController(),
             queue_store,
             FakeAppServerClient(),
+            FakeLiveIpcClient(),
         )
 
         result = main._handle_tool_call(

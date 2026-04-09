@@ -12,6 +12,7 @@ if __package__ in (None, ""):
     from server.app_server_client import CodexAppServerClient
     from server.backup_store import BackupStore
     from server.config_store import ConfigStore
+    from server.live_ipc_client import LiveCodexIpcClient
     from server.prompt_queue_store import PromptQueueStore
     from server.thread_store import ThreadStore
 else:  # pragma: no cover - exercised in plugin runtime
@@ -19,6 +20,7 @@ else:  # pragma: no cover - exercised in plugin runtime
     from .app_server_client import CodexAppServerClient
     from .backup_store import BackupStore
     from .config_store import ConfigStore
+    from .live_ipc_client import LiveCodexIpcClient
     from .prompt_queue_store import PromptQueueStore
     from .thread_store import ThreadStore
 
@@ -58,7 +60,7 @@ def _default_prompt_queue_path() -> Path:
     ).expanduser()
 
 
-def _make_services() -> tuple[ThreadStore, ConfigStore, CodexAppController, PromptQueueStore, CodexAppServerClient]:
+def _make_services() -> tuple[ThreadStore, ConfigStore, CodexAppController, PromptQueueStore, CodexAppServerClient, LiveCodexIpcClient]:
     backup_store = BackupStore(_default_backup_path())
     return (
         ThreadStore(_default_state_db(), backup_store=backup_store),
@@ -66,6 +68,7 @@ def _make_services() -> tuple[ThreadStore, ConfigStore, CodexAppController, Prom
         CodexAppController(app_name=_default_app_name()),
         PromptQueueStore(_default_prompt_queue_path()),
         CodexAppServerClient(),
+        LiveCodexIpcClient(),
     )
 
 
@@ -249,6 +252,20 @@ def _tool_definitions() -> list[dict[str, Any]]:
                 "additionalProperties": False,
             },
         },
+        {
+            "name": "send_prompt_to_visible_thread",
+            "description": "Send a prompt into the currently loaded Codex desktop thread through the live IPC router.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "thread_id": {"type": "string"},
+                    "title": {"type": "string"},
+                    "message": {"type": "string"},
+                },
+                "required": ["message"],
+                "additionalProperties": False,
+            },
+        },
     ]
 
 
@@ -287,7 +304,7 @@ def _resolve_thread(args: dict[str, Any], store: ThreadStore):
 
 
 def _handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
-    thread_store, config_store, app_controller, prompt_queue_store, app_server_client = _make_services()
+    thread_store, config_store, app_controller, prompt_queue_store, app_server_client, live_ipc_client = _make_services()
 
     if name == "list_threads":
         threads = thread_store.list_threads(
@@ -472,6 +489,14 @@ def _handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
             raise McpError("message is required", code=-32003)
         result = app_server_client.send_prompt_to_thread(thread_id=thread.id, message=message)
         return _content({"thread": result["thread"], "turn": result["turn"], "sent": True})
+
+    if name == "send_prompt_to_visible_thread":
+        thread = _resolve_thread(args, thread_store)
+        message = str(args.get("message", "")).strip()
+        if not message:
+            raise McpError("message is required", code=-32003)
+        result = live_ipc_client.submit_user_input(conversation_id=thread.id, message=message)
+        return _content({"thread": thread.to_dict(), "result": result, "sent": True})
 
     raise McpError(f"Unknown tool: {name}", code=-32601)
 
