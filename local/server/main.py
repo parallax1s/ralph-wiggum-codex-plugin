@@ -266,6 +266,18 @@ def _tool_definitions() -> list[dict[str, Any]]:
                 "additionalProperties": False,
             },
         },
+        {
+            "name": "interrupt_visible_thread",
+            "description": "Interrupt the currently loaded Codex desktop thread through the live IPC router.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "thread_id": {"type": "string"},
+                    "title": {"type": "string"},
+                },
+                "additionalProperties": False,
+            },
+        },
     ]
 
 
@@ -495,8 +507,13 @@ def _handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
         message = str(args.get("message", "")).strip()
         if not message:
             raise McpError("message is required", code=-32003)
-        result = live_ipc_client.submit_user_input(conversation_id=thread.id, message=message)
+        result = live_ipc_client.start_turn(conversation_id=thread.id, message=message)
         return _content({"thread": thread.to_dict(), "result": result, "sent": True})
+
+    if name == "interrupt_visible_thread":
+        thread = _resolve_thread(args, thread_store)
+        result = live_ipc_client.interrupt_conversation(conversation_id=thread.id)
+        return _content({"thread": thread.to_dict(), "result": result, "interrupted": True})
 
     raise McpError(f"Unknown tool: {name}", code=-32601)
 

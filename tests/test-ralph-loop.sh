@@ -13,6 +13,8 @@ FOREGROUND_REPO="${TMP_DIR}/foreground-project"
 TIMEOUT_REPO="${TMP_DIR}/timeout-project"
 DEFAULT_HOME_REPO="${TMP_DIR}/default-home-project"
 DEFAULT_HOME_LOG="${TMP_DIR}/default-home-fake-codex.log"
+VISIBLE_THREAD_REPO="${TMP_DIR}/visible-thread-project"
+VISIBLE_THREAD_LOG="${TMP_DIR}/visible-thread.log"
 
 wait_for_file() {
   local file_path="$1"
@@ -58,6 +60,7 @@ rm -rf "${TMP_DIR}"
 mkdir -p "${LONG_REPO}" "${COMPLETE_REPO}" "${FOREGROUND_REPO}"
 mkdir -p "${TIMEOUT_REPO}"
 mkdir -p "${DEFAULT_HOME_REPO}"
+mkdir -p "${VISIBLE_THREAD_REPO}"
 mkdir -p "${TEST_HOME}/.codex"
 printf '{"token":"test"}\n' >"${TEST_HOME}/.codex/auth.json"
 printf 'repo\n' >"${LONG_REPO}/README.md"
@@ -65,6 +68,7 @@ printf 'repo\n' >"${COMPLETE_REPO}/README.md"
 printf 'repo\n' >"${FOREGROUND_REPO}/README.md"
 printf 'repo\n' >"${TIMEOUT_REPO}/README.md"
 printf 'repo\n' >"${DEFAULT_HOME_REPO}/README.md"
+printf 'repo\n' >"${VISIBLE_THREAD_REPO}/README.md"
 
 (
   cd "${FOREGROUND_REPO}"
@@ -122,6 +126,28 @@ EOF
 
 grep -F "CODEX_HOME=${TEST_HOME}/.codex-ralph" "${DEFAULT_HOME_LOG}" >/dev/null
 test -f "${TEST_HOME}/.codex-ralph/auth.json"
+
+(
+  cd "${VISIBLE_THREAD_REPO}"
+  RALPH_VISIBLE_THREAD_TRANSPORT="${REPO_ROOT}/scripts/fake-visible-thread.sh" \
+  FAKE_VISIBLE_THREAD_LOG="${VISIBLE_THREAD_LOG}" \
+  FAKE_VISIBLE_THREAD_COMPLETE_PROMISE="COMPLETE" \
+  node "${REPO_ROOT}/scripts/ralph-start.js" \
+    --transport visible-thread \
+    --thread-id "thread-visible-1" \
+    --prompt "Loop through the visible app thread." \
+    --max-iterations 1 \
+    --completion-promise COMPLETE \
+    >"${TMP_DIR}/visible-thread.stdout.log" 2>"${TMP_DIR}/visible-thread.stderr.log"
+)
+
+VISIBLE_THREAD_STATE="${VISIBLE_THREAD_REPO}/.ralph/ralph-loop.state.json"
+wait_for_file "${VISIBLE_THREAD_STATE}"
+wait_for_state_status "${VISIBLE_THREAD_STATE}" "completed"
+
+grep -F "THREAD_ID=thread-visible-1" "${VISIBLE_THREAD_LOG}" >/dev/null
+grep -F "TIMEOUT_MS=60000" "${VISIBLE_THREAD_LOG}" >/dev/null
+grep -F "Output <promise>COMPLETE</promise> when complete." "${VISIBLE_THREAD_LOG}" >/dev/null
 
 (
   cd "${TIMEOUT_REPO}"

@@ -57,7 +57,10 @@ class AppNativeLoopToolTests(unittest.TestCase):
                 return {"thread": {"id": thread_id}, "turn": {"id": "turn-1", "status": "inProgress"}}
 
         class FakeLiveIpcClient:
-            def submit_user_input(self, *, conversation_id: str, message: str):
+            def start_turn(self, *, conversation_id: str, message: str):
+                return {"turn": {"id": "turn-1", "status": "inProgress"}}
+
+            def interrupt_conversation(self, *, conversation_id: str):
                 return {"ok": True}
 
         self_owner = self
@@ -94,7 +97,10 @@ class AppNativeLoopToolTests(unittest.TestCase):
                 return {"thread": {"id": thread_id}, "turn": {"id": "turn-1", "status": "inProgress"}}
 
         class FakeLiveIpcClient:
-            def submit_user_input(self, *, conversation_id: str, message: str):
+            def start_turn(self, *, conversation_id: str, message: str):
+                return {"turn": {"id": "turn-1", "status": "inProgress"}}
+
+            def interrupt_conversation(self, *, conversation_id: str):
                 return {"ok": True}
 
         self_owner = self
@@ -131,7 +137,10 @@ class AppNativeLoopToolTests(unittest.TestCase):
                 return {"thread": {"id": thread_id}, "turn": {"id": "turn-1", "status": "inProgress"}}
 
         class FakeLiveIpcClient:
-            def submit_user_input(self, *, conversation_id: str, message: str):
+            def start_turn(self, *, conversation_id: str, message: str):
+                return {"turn": {"id": "turn-1", "status": "inProgress"}}
+
+            def interrupt_conversation(self, *, conversation_id: str):
                 return {"ok": True}
 
         self_owner = self

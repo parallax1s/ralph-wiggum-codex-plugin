@@ -21,6 +21,8 @@ function parseArgs(argv) {
     completionPromise: "COMPLETE",
     abortPromise: null,
     model: null,
+    transport: "codex-exec",
+    threadId: null,
     tasksMode: false,
     force: false,
     background: false,
@@ -46,6 +48,12 @@ function parseArgs(argv) {
         break;
       case "--model":
         parsed.model = argv[++index] || "";
+        break;
+      case "--transport":
+        parsed.transport = argv[++index] || "";
+        break;
+      case "--thread-id":
+        parsed.threadId = argv[++index] || "";
         break;
       case "--tasks":
         parsed.tasksMode = true;
@@ -73,6 +81,12 @@ function parseArgs(argv) {
   if (!Number.isInteger(parsed.iterationTimeoutMs) || parsed.iterationTimeoutMs < 1) {
     throw new Error("Missing or invalid argument: --iteration-timeout-ms");
   }
+  if (!["codex-exec", "visible-thread"].includes(parsed.transport)) {
+    throw new Error("Missing or invalid argument: --transport");
+  }
+  if (parsed.transport === "visible-thread" && !parsed.threadId?.trim()) {
+    throw new Error("Missing required argument: --thread-id");
+  }
 
   return parsed;
 }
@@ -95,6 +109,8 @@ function main() {
     completionPromise: args.completionPromise,
     abortPromise: args.abortPromise,
     model: args.model,
+    transport: args.transport,
+    threadId: args.threadId,
     taskPrompt: args.prompt,
     tasksMode: args.tasksMode,
   });

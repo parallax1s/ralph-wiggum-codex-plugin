@@ -52,7 +52,7 @@ class LiveIpcClientTests(unittest.TestCase):
         from server.live_ipc_client import LiveCodexIpcClient
         return LiveCodexIpcClient
 
-    def test_submit_user_input_initializes_and_sends_follower_request(self) -> None:
+    def test_start_turn_initializes_and_sends_follower_turn_request(self) -> None:
         LiveCodexIpcClient = self._imports()
         fake = _FakeSocket(
             [
@@ -64,10 +64,119 @@ class LiveIpcClientTests(unittest.TestCase):
                     "result": {"clientId": "client-1"},
                 },
                 {
+                    "type": "broadcast",
+                    "method": "thread-stream-state-changed",
+                    "sourceClientId": "owner-1",
+                    "params": {
+                        "conversationId": "thread-1",
+                        "change": {
+                            "type": "snapshot",
+                            "conversationState": {
+                                "id": "thread-1",
+                                "turns": [],
+                            },
+                        },
+                    },
+                },
+                {
                     "type": "response",
-                    "requestId": "thread-follower-submit-user-input",
+                    "requestId": "thread-follower-start-turn:req-1",
                     "resultType": "success",
-                    "method": "thread-follower-submit-user-input",
+                    "method": "thread-follower-start-turn",
+                    "result": {"turn": {"id": "turn-1", "status": "inProgress"}},
+                },
+            ]
+        )
+
+        with patch.object(socket, "socket", return_value=fake):
+            client = LiveCodexIpcClient(socket_path=Path("/tmp/fake.sock"), timeout_seconds=0.1)
+            with patch("server.live_ipc_client.uuid.uuid4", return_value="req-1"):
+                result = client.start_turn(
+                conversation_id="thread-1",
+                message="continue",
+                )
+
+        self.assertEqual(result, {"turn": {"id": "turn-1", "status": "inProgress"}})
+        payloads = []
+        for frame in fake.sent:
+            size = struct.unpack("<I", frame[:4])[0]
+            payloads.append(json.loads(frame[4 : 4 + size].decode("utf-8")))
+        self.assertEqual(payloads[0]["method"], "initialize")
+        self.assertEqual(payloads[1]["method"], "thread-follower-start-turn")
+        self.assertEqual(payloads[1]["targetClientId"], "owner-1")
+        self.assertEqual(payloads[1]["params"]["conversationId"], "thread-1")
+        self.assertEqual(
+            payloads[1]["params"]["turnStartParams"]["input"],
+            [{"type": "text", "text": "continue"}],
+        )
+
+    def test_start_turn_rejects_when_thread_already_in_progress(self) -> None:
+        LiveCodexIpcClient = self._imports()
+        fake = _FakeSocket(
+            [
+                {
+                    "type": "response",
+                    "requestId": "init",
+                    "resultType": "success",
+                    "method": "initialize",
+                    "result": {"clientId": "client-1"},
+                },
+                {
+                    "type": "broadcast",
+                    "method": "thread-stream-state-changed",
+                    "sourceClientId": "owner-1",
+                    "params": {
+                        "conversationId": "thread-1",
+                        "change": {
+                            "type": "snapshot",
+                            "conversationState": {
+                                "id": "thread-1",
+                                "turns": [
+                                    {"turnId": "turn-in-flight", "status": "inProgress"},
+                                ],
+                            },
+                        },
+                    },
+                },
+            ]
+        )
+
+        with patch.object(socket, "socket", return_value=fake):
+            client = LiveCodexIpcClient(socket_path=Path("/tmp/fake.sock"), timeout_seconds=0.1)
+            with self.assertRaisesRegex(RuntimeError, "in-progress"):
+                client.start_turn(conversation_id="thread-1", message="continue")
+
+    def test_interrupt_conversation_targets_owner(self) -> None:
+        LiveCodexIpcClient = self._imports()
+        fake = _FakeSocket(
+            [
+                {
+                    "type": "response",
+                    "requestId": "init",
+                    "resultType": "success",
+                    "method": "initialize",
+                    "result": {"clientId": "client-1"},
+                },
+                {
+                    "type": "broadcast",
+                    "method": "thread-stream-state-changed",
+                    "sourceClientId": "owner-1",
+                    "params": {
+                        "conversationId": "thread-1",
+                        "change": {
+                            "type": "snapshot",
+                            "conversationState": {
+                                "id": "thread-1",
+                                "turns": [{"turnId": "turn-in-flight", "status": "inProgress"}],
+                            },
+                        },
+                    },
+                },
+                {
+                    "type": "response",
+                    "requestId": "thread-follower-interrupt-turn:req-2",
+                    "resultType": "success",
+                    "method": "thread-follower-interrupt-turn",
                     "result": {"ok": True},
                 },
             ]
@@ -75,20 +184,73 @@ class LiveIpcClientTests(unittest.TestCase):
 
         with patch.object(socket, "socket", return_value=fake):
             client = LiveCodexIpcClient(socket_path=Path("/tmp/fake.sock"), timeout_seconds=0.1)
-            result = client.submit_user_input(
-                conversation_id="thread-1",
-                message="continue",
-            )
+            with patch("server.live_ipc_client.uuid.uuid4", return_value="req-2"):
+                result = client.interrupt_conversation(conversation_id="thread-1")
 
         self.assertEqual(result, {"ok": True})
         payloads = []
         for frame in fake.sent:
             size = struct.unpack("<I", frame[:4])[0]
             payloads.append(json.loads(frame[4 : 4 + size].decode("utf-8")))
-        self.assertEqual(payloads[0]["method"], "initialize")
-        self.assertEqual(payloads[1]["method"], "thread-follower-submit-user-input")
-        self.assertEqual(payloads[1]["params"]["conversationId"], "thread-1")
-        self.assertEqual(payloads[1]["params"]["message"], "continue")
+        self.assertEqual(payloads[1]["method"], "thread-follower-interrupt-turn")
+        self.assertEqual(payloads[1]["targetClientId"], "owner-1")
+
+    def test_wait_for_turn_terminal_returns_completed_turn(self) -> None:
+        LiveCodexIpcClient = self._imports()
+        fake = _FakeSocket(
+            [
+                {
+                    "type": "response",
+                    "requestId": "init",
+                    "resultType": "success",
+                    "method": "initialize",
+                    "result": {"clientId": "client-1"},
+                },
+                {
+                    "type": "broadcast",
+                    "method": "thread-stream-state-changed",
+                    "sourceClientId": "owner-1",
+                    "params": {
+                        "conversationId": "thread-1",
+                        "change": {
+                            "type": "snapshot",
+                            "conversationState": {
+                                "id": "thread-1",
+                                "turns": [{"turnId": "turn-1", "status": "inProgress"}],
+                            },
+                        },
+                    },
+                },
+                {
+                    "type": "broadcast",
+                    "method": "thread-stream-state-changed",
+                    "sourceClientId": "owner-1",
+                    "params": {
+                        "conversationId": "thread-1",
+                        "change": {
+                            "type": "snapshot",
+                            "conversationState": {
+                                "id": "thread-1",
+                                "turns": [
+                                    {
+                                        "turnId": "turn-1",
+                                        "status": "completed",
+                                        "items": [{"type": "agentMessage", "text": "done"}],
+                                    }
+                                ],
+                            },
+                        },
+                    },
+                },
+            ]
+        )
+
+        with patch.object(socket, "socket", return_value=fake):
+            client = LiveCodexIpcClient(socket_path=Path("/tmp/fake.sock"), timeout_seconds=0.1)
+            result = client.wait_for_turn_terminal(conversation_id="thread-1", turn_id="turn-1")
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["items"][0]["text"], "done")
 
 
 if __name__ == "__main__":

@@ -39,6 +39,23 @@ node scripts/ralph-add-context.js --message "Prefer the smaller patch."
 node scripts/ralph-stop.js
 ```
 
+Visible-thread loop mode:
+
+```bash
+node scripts/ralph-start.js \
+  --transport visible-thread \
+  --thread-id 019d61bf-9ed1-7011-96c5-adc870674b21 \
+  --prompt "continue" \
+  --max-iterations 5 \
+  --completion-promise COMPLETE
+```
+
+In `visible-thread` mode, Ralph:
+
+- submits exactly one live user turn into the target Codex desktop thread
+- waits for that specific turn to leave `inProgress` before attempting another iteration
+- refuses to enqueue a new iteration if the conversation already has an in-progress turn
+
 ## Validation
 
 ```bash

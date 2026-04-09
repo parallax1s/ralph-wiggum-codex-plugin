@@ -39,6 +39,8 @@ function createInitialState(options) {
     completionPromise: options.completionPromise,
     abortPromise: options.abortPromise || null,
     model: options.model || null,
+    transport: options.transport || "codex-exec",
+    threadId: options.threadId || null,
     taskPrompt: options.taskPrompt,
     tasksMode: !!options.tasksMode,
     currentTask: null,

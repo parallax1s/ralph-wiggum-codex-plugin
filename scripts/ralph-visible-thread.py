@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "local"))
+
+from server.live_ipc_client import LiveCodexIpcClient  # noqa: E402
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--thread-id", required=True)
+    parser.add_argument("--message", required=True)
+    parser.add_argument("--timeout-ms", type=int, required=True)
+    return parser.parse_args()
+
+
+def _emit_turn_output(turn: dict) -> None:
+    for item in turn.get("items", []):
+        if item.get("type") == "agentMessage":
+            text = item.get("text")
+            if text:
+                print(text)
+
+
+def main() -> int:
+    args = _parse_args()
+    timeout_seconds = max(1.0, args.timeout_ms / 1000.0)
+    client = LiveCodexIpcClient(timeout_seconds=timeout_seconds)
+    result = client.start_turn(conversation_id=args.thread_id, message=args.message)
+    turn = result.get("turn") or {}
+    turn_id = turn.get("id")
+    if not turn_id:
+      print("missing turn id from visible-thread start", file=sys.stderr)
+      return 1
+    print(f"[ralph-visible-thread] started turn {turn_id}", file=sys.stderr)
+    terminal_turn = client.wait_for_turn_terminal(conversation_id=args.thread_id, turn_id=str(turn_id))
+    _emit_turn_output(terminal_turn)
+    if terminal_turn.get("status") == "completed":
+        return 0
+    error = terminal_turn.get("error") or {}
+    message = error.get("message") if isinstance(error, dict) else str(error)
+    if message:
+        print(message, file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

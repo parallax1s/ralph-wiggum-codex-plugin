@@ -2,6 +2,7 @@
 "use strict";
 
 const fs = require("fs");
+const path = require("path");
 const { spawnSync } = require("child_process");
 const {
   appendHistory,
@@ -24,6 +25,33 @@ function getCodexArgs(state, prompt) {
   }
   args.push(prompt);
   return args;
+}
+
+function getVisibleThreadCommand() {
+  return process.env.RALPH_VISIBLE_THREAD_TRANSPORT || "python3";
+}
+
+function getVisibleThreadArgs(state, prompt) {
+  if (process.env.RALPH_VISIBLE_THREAD_TRANSPORT) {
+    return [
+      "--thread-id",
+      state.threadId,
+      "--message",
+      prompt,
+      "--timeout-ms",
+      String(state.iterationTimeoutMs),
+    ];
+  }
+
+  return [
+    path.join(__dirname, "ralph-visible-thread.py"),
+    "--thread-id",
+    state.threadId,
+    "--message",
+    prompt,
+    "--timeout-ms",
+    String(state.iterationTimeoutMs),
+  ];
 }
 
 function detectResult(output, state) {
@@ -52,8 +80,8 @@ function runIteration(state) {
   const paths = getRalphPaths(state.cwd);
   const contextText = fs.existsSync(paths.context) ? fs.readFileSync(paths.context, "utf8") : "";
   const prompt = buildIterationPrompt(state, contextText);
-  const command = getCodexCommand(state);
-  const args = getCodexArgs(state, prompt);
+  const command = state.transport === "visible-thread" ? getVisibleThreadCommand() : getCodexCommand(state);
+  const args = state.transport === "visible-thread" ? getVisibleThreadArgs(state, prompt) : getCodexArgs(state, prompt);
   const iteration = state.iteration + 1;
   const logPath = getIterationLogPath(state.cwd, iteration);
   const startedAt = new Date().toISOString();
