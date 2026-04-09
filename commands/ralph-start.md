@@ -27,12 +27,11 @@ RALPH_SKILL_DIR="${CODEX_HOME:-$HOME/.codex}/skills/ralph-wiggum-codex-plugin"
 RALPH_PLUGIN_ROOT="$(cd "${RALPH_SKILL_DIR}/../.." && pwd)"
 ```
 
-4. Run the start command with a bounded default. This runs in the current conversation by default.
+4. Run the start command with the built-in fallback bound. This runs in the current conversation by default.
 
 ```bash
 node "${RALPH_PLUGIN_ROOT}/scripts/ralph-start.js" \
   --prompt "$ARGUMENTS" \
-  --max-iterations 5 \
   --completion-promise COMPLETE
 ```
 
@@ -41,3 +40,4 @@ node "${RALPH_PLUGIN_ROOT}/scripts/ralph-start.js" \
 ## Notes
 
 - Add `--background` only when the user explicitly wants a detached loop.
+- If `--max-iterations` is omitted, Ralph uses `256` as the safety bound, which is the practical default for “until stopped”.
