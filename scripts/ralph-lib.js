@@ -119,6 +119,27 @@ function buildIterationPrompt(state, contextText) {
   return parts.join("\n\n");
 }
 
+function parseFlagArgs(argv) {
+  const parsed = {};
+  for (let index = 0; index < argv.length; index++) {
+    const arg = argv[index];
+    if (!arg.startsWith("--")) {
+      throw new Error(`Unknown argument: ${arg}`);
+    }
+
+    const key = arg.slice(2);
+    const next = argv[index + 1];
+    if (next === undefined || next.startsWith("--")) {
+      parsed[key] = true;
+      continue;
+    }
+
+    parsed[key] = next;
+    index += 1;
+  }
+  return parsed;
+}
+
 module.exports = {
   appendHistory,
   atomicWriteJson,
@@ -128,6 +149,7 @@ module.exports = {
   getIterationLogPath,
   getRalphPaths,
   isPidAlive,
+  parseFlagArgs,
   readJson,
   readState,
   updateState,
